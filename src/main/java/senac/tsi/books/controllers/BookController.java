@@ -22,4 +22,8 @@ public class BookController {
     public List<Book> getBooks(){
         return bookRepository.findAll();
     }
+
+    public Book getBookById(){
+        return new Book();
+    }
 }
