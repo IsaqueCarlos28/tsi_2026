@@ -3,6 +3,10 @@ package senac.tsi.books.entities;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import java.util.Objects;
@@ -14,7 +18,15 @@ public class Book {
     @Id
     @GeneratedValue
     private long id;
+
+    @NotNull
+    @NotBlank
+    @Size(min=1, max=255)
     private String title;
+
+    @NotNull
+    @NotBlank
+    @Size(min=1, max=255)
     private String author;
 
     public Book() {
