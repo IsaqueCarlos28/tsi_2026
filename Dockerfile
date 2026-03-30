@@ -1,22 +1,29 @@
-# Importing JDK and copying required files
-FROM openjdk:19-jdk AS build
+# ---------- Build stage ----------
+FROM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /app
+
+# Copy build descriptors first for better cache
 COPY pom.xml .
-COPY src src
-
-# Copy Maven wrapper
-COPY mvnw .
 COPY .mvn .mvn
-
-# Set execution permission for the Maven wrapper
+COPY mvnw .
 RUN chmod +x ./mvnw
-RUN ./mvnw clean package -DskipTests
 
-# Stage 2: Create the final Docker image using OpenJDK 19
-FROM openjdk:19-jdk
-VOLUME /tmp
+# Download deps (optional but speeds up rebuilds)
+RUN ./mvnw -q -DskipTests dependency:go-offline
 
-# Copy the JAR from the build stage
+# Copy source and build
+COPY src src
+RUN ./mvnw -DskipTests clean package
+
+
+# ---------- Runtime stage ----------
+FROM eclipse-temurin:25-jre
+WORKDIR /app
+
 COPY --from=build /app/target/*.jar app.jar
-ENTRYPOINT ["java","-jar","/app.jar"]
+
+# Render sets PORT at runtime
+ENV PORT=8080
 EXPOSE 8080
+
+ENTRYPOINT ["sh", "-c", "java -Dserver.port=$PORT -jar app.jar"]
