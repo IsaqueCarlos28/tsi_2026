@@ -1,5 +1,8 @@
 package senac.tsi.books.controllers;
 
+import io.github.bucket4j.Bandwidth;
+import io.github.bucket4j.Bucket;
+import io.github.bucket4j.Refill;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -25,6 +28,7 @@ import senac.tsi.books.exceptions.BookNotFoundException;
 import senac.tsi.books.repositories.BookRepository;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
@@ -33,15 +37,24 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 @RestController
 public class BookController {
 
-    private final BookRepository bookRepository;
-    private final PagedResourcesAssembler<Book> pagedResourcesAssembler;
+    @Autowired
+    private BookRepository bookRepository;
 
+    @Autowired
+    private PagedResourcesAssembler<Book> pagedResourcesAssembler;
+
+    private final Bucket bucket;
 
     @Autowired
     public BookController(BookRepository bookRepository,
-                          PagedResourcesAssembler<Book> pagedResourcesAssembler) {
-        this.bookRepository = bookRepository;
-        this.pagedResourcesAssembler = pagedResourcesAssembler;
+                          PagedResourcesAssembler<Book> pagedResourcesAssembler
+    ){
+        //this.pagedResourcesAssembler = pagedResourcesAssembler;
+        //this.bookRepository = bookRepository;
+        Bandwidth limit = Bandwidth.classic(20, Refill.greedy(20, Duration.ofMinutes(1)));
+        this.bucket = Bucket.builder()
+                .addLimit(limit)
+                .build();
     }
 
     @Tag(name = "Get")
@@ -53,11 +66,14 @@ public class BookController {
     @GetMapping("/books")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<PagedModel<EntityModel<Book>>> getBooks(@ParameterObject Pageable pageable){
-        var books = bookRepository.findAll(pageable);
+        if (bucket.tryConsume(1)) {
+            var books = bookRepository.findAll(pageable);
 
-        PagedModel<EntityModel<Book>> pagedModelBooks = pagedResourcesAssembler.toModel(books);
+            PagedModel<EntityModel<Book>> pagedModelBooks = pagedResourcesAssembler.toModel(books);
 
-        return ResponseEntity.ok(pagedModelBooks);
+            return ResponseEntity.ok(pagedModelBooks);
+        }
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
     }
 
     @Tag(name = "Get Book by id",
